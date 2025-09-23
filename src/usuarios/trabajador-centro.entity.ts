@@ -1,0 +1,52 @@
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
+import { Institucion } from '../evaluaciones/institucion.entity';
+import { Rol } from './rol.entity';
+import { Especialidad } from './especialidad.entity';
+
+@Entity('trabajador_centro')
+export class TrabajadorCentro {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column()
+  nombres: string;
+
+  @Column()
+  apellidos: string;
+
+  @Column({ unique: true })
+  dni: string;
+
+  @Column({ unique: true })
+  username: string;
+
+  @Column()
+  password: string;
+
+  @Column({ unique: true })
+  email: string;
+
+  @ManyToOne(() => Rol, { eager: true })
+  @JoinColumn({ name: 'rol_id' })
+  rol: Rol;
+
+  @ManyToOne(() => Especialidad, { eager: true, nullable: true })
+  @JoinColumn({ name: 'especialidad_id' })
+  especialidad: Especialidad;
+
+  @ManyToOne(() => Institucion, { eager: true })
+  @JoinColumn({ name: 'institucion_id' })
+  institucion: Institucion;
+
+  @Column({ default: true })
+  estado: boolean;
+
+  @Column({ type: 'timestamp', nullable: true })
+  ultimo_acceso: Date;
+
+  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  created_at: Date;
+
+  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP', onUpdate: 'CURRENT_TIMESTAMP' })
+  updated_at: Date;
+} 

@@ -1,0 +1,155 @@
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { AsignacionTerapeuta } from './asignacion-terapeuta.entity';
+import { CreateAsignacionTerapeutaDto } from './dto/create-asignacion-terapeuta.dto';
+import { PacienteServicio } from './paciente-servicio.entity';
+import { TrabajadorCentro } from '../usuarios/trabajador-centro.entity';
+import { AsignarTerapeutaDto } from './dto/asignar-terapeuta.dto';
+
+@Injectable()
+export class AsignacionTerapeutaService {
+  constructor(
+    @InjectRepository(AsignacionTerapeuta)
+    private asignacionTerapeutaRepository: Repository<AsignacionTerapeuta>,
+    @InjectRepository(PacienteServicio)
+    private pacienteServicioRepository: Repository<PacienteServicio>,
+    @InjectRepository(TrabajadorCentro)
+    private trabajadorCentroRepository: Repository<TrabajadorCentro>,
+  ) {}
+
+  async create(createAsignacionTerapeutaDto: CreateAsignacionTerapeutaDto): Promise<AsignacionTerapeuta> {
+    const pacienteServicio = await this.pacienteServicioRepository.findOne({
+      where: { id: createAsignacionTerapeutaDto.paciente_servicio_id }
+    });
+    
+    const terapeuta = await this.trabajadorCentroRepository.findOne({
+      where: { id: createAsignacionTerapeutaDto.terapeuta_id }
+    });
+
+    if (!pacienteServicio || !terapeuta) {
+      throw new Error('PacienteServicio o terapeuta no encontrado');
+    }
+
+    // Verificar si ya existe una asignación activa para este paciente-servicio
+    const asignacionExistente = await this.asignacionTerapeutaRepository.findOne({
+      where: { 
+        pacienteServicio: { id: createAsignacionTerapeutaDto.paciente_servicio_id },
+        estado: 'ACTIVO',
+        activo: true
+      }
+    });
+
+    if (asignacionExistente) {
+      // Desactivar la asignación anterior
+      asignacionExistente.estado = 'INACTIVO';
+      asignacionExistente.fecha_fin = new Date();
+      await this.asignacionTerapeutaRepository.save(asignacionExistente);
+    }
+
+    const asignacionTerapeuta = this.asignacionTerapeutaRepository.create({
+      pacienteServicio,
+      terapeuta,
+      fecha_asignacion: new Date(createAsignacionTerapeutaDto.fecha_asignacion),
+      fecha_fin: createAsignacionTerapeutaDto.fecha_fin ? new Date(createAsignacionTerapeutaDto.fecha_fin) : null,
+      observaciones: createAsignacionTerapeutaDto.observaciones,
+      activo: createAsignacionTerapeutaDto.activo ?? true,
+    });
+
+    return this.asignacionTerapeutaRepository.save(asignacionTerapeuta);
+  }
+
+  async asignarTerapeuta(dto: AsignarTerapeutaDto) {
+    console.log('AsignarTerapeuta - DTO recibido:', dto);
+    
+    // 1. Desactivar asignaciones anteriores del mismo paciente_servicio
+    const asignacionesAnteriores = await this.asignacionTerapeutaRepository.find({
+      where: {
+        pacienteServicio: { id: dto.paciente_servicio_id },
+        estado: 'ACTIVO',
+        activo: true
+      }
+    });
+
+    console.log('Asignaciones anteriores encontradas:', asignacionesAnteriores.length);
+
+    if (asignacionesAnteriores.length > 0) {
+      for (const asignacion of asignacionesAnteriores) {
+        asignacion.estado = 'INACTIVO';
+        asignacion.fecha_fin = new Date();
+        asignacion.activo = false;
+        await this.asignacionTerapeutaRepository.save(asignacion);
+      }
+    }
+
+    // 2. Crear nueva asignación activa
+    const asignacion = this.asignacionTerapeutaRepository.create({
+      pacienteServicio: { id: dto.paciente_servicio_id },
+      terapeuta: { id: dto.terapeuta_id },
+      fecha_asignacion: new Date(),
+      estado: 'ACTIVO',
+      activo: true
+    });
+    
+    const resultado = await this.asignacionTerapeutaRepository.save(asignacion);
+    console.log('Nueva asignación creada:', resultado);
+    return resultado;
+  }
+
+  async findAll(): Promise<AsignacionTerapeuta[]> {
+    return this.asignacionTerapeutaRepository.find({
+      relations: ['pacienteServicio', 'pacienteServicio.paciente', 'pacienteServicio.servicio', 'terapeuta'],
+      where: { activo: true }
+    });
+  }
+
+  async findByTerapeuta(terapeutaId: number): Promise<AsignacionTerapeuta[]> {
+    return this.asignacionTerapeutaRepository.find({
+      relations: ['pacienteServicio', 'pacienteServicio.paciente', 'pacienteServicio.servicio', 'terapeuta'],
+      where: { 
+        terapeuta: { id: terapeutaId },
+        estado: 'ACTIVO',
+        activo: true 
+      }
+    });
+  }
+
+  async findByPacienteServicio(pacienteServicioId: number): Promise<AsignacionTerapeuta[]> {
+    return this.asignacionTerapeutaRepository.find({
+      relations: ['pacienteServicio', 'pacienteServicio.paciente', 'pacienteServicio.servicio', 'terapeuta'],
+      where: { 
+        pacienteServicio: { id: pacienteServicioId },
+        activo: true 
+      }
+    });
+  }
+
+  async findOne(id: number): Promise<AsignacionTerapeuta> {
+    return this.asignacionTerapeutaRepository.findOne({
+      relations: ['pacienteServicio', 'pacienteServicio.paciente', 'pacienteServicio.servicio', 'terapeuta'],
+      where: { id, activo: true }
+    });
+  }
+
+  async update(id: number, updateAsignacionTerapeutaDto: Partial<CreateAsignacionTerapeutaDto>): Promise<AsignacionTerapeuta> {
+    const asignacionTerapeuta = await this.findOne(id);
+    if (!asignacionTerapeuta) {
+      throw new Error('AsignacionTerapeuta no encontrado');
+    }
+
+    Object.assign(asignacionTerapeuta, updateAsignacionTerapeutaDto);
+    return this.asignacionTerapeutaRepository.save(asignacionTerapeuta);
+  }
+
+  async remove(id: number): Promise<void> {
+    const asignacionTerapeuta = await this.findOne(id);
+    if (!asignacionTerapeuta) {
+      throw new Error('AsignacionTerapeuta no encontrado');
+    }
+
+    asignacionTerapeuta.estado = 'INACTIVO';
+    asignacionTerapeuta.fecha_fin = new Date();
+    asignacionTerapeuta.activo = false;
+    await this.asignacionTerapeutaRepository.save(asignacionTerapeuta);
+  }
+} 

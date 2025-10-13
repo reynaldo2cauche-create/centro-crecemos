@@ -53,6 +53,10 @@ import { AntecedentesFamiliares } from './catalogos/antecedentes-familiares.enti
 import { Ocupaciones } from './catalogos/ocupaciones.entity';
 import { HermanoEntrevista } from './historia-clinica/entities/hermano-entrevista.entity';
 import { FamiliarEntrevista } from './historia-clinica/entities/familiar-entrevista.entity';
+import { LibroReclamacionModule } from './libro-reclamacion/libro-reclamacion.module';
+import { LibroReclamacion } from './libro-reclamacion/entities/libro-reclamacion.entity';
+import { LibroReclamacionDocumento } from './libro-reclamacion/entities/libro-reclamacion-documento.entity';
+import { LibroReclamacionSeguimiento } from './libro-reclamacion/entities/libro-reclamacion-seguimiento.entity';
   
 @Module({
   imports: [
@@ -68,8 +72,8 @@ import { FamiliarEntrevista } from './historia-clinica/entities/familiar-entrevi
       host: 'localhost',
       port: 3306,
       username: 'root',  // Asegúrate de poner el nombre de usuario correcto
-      password: 'Reynaldo1994',  // Asegúrate de poner la contraseña correcta
-      database: 'centro_terapias',
+      password: 'admin',  // Asegúrate de poner la contraseña correcta
+      database: 'crecemos_website',
       entities: [
         Postulacion,
         Paciente,
@@ -110,7 +114,10 @@ import { FamiliarEntrevista } from './historia-clinica/entities/familiar-entrevi
         AntecedentesFamiliares,
         Ocupaciones,
         HermanoEntrevista,
-        FamiliarEntrevista
+        FamiliarEntrevista,  // ✅ AÑADE ESTAS 3 ENTIDADES:
+        LibroReclamacion,
+        LibroReclamacionDocumento,
+        LibroReclamacionSeguimiento,
       ],
       synchronize: false,    // Desactivado para evitar problemas con datos existentes
     }),
@@ -133,8 +140,11 @@ import { FamiliarEntrevista } from './historia-clinica/entities/familiar-entrevi
     AuthModule,
     TrabajadorCentroModule,
     HistoriaClinicaModule,
+    LibroReclamacionModule,
+    
   ],
   controllers: [AppController],
   providers: [AppService],
 })
+
 export class AppModule {}

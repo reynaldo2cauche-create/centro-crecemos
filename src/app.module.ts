@@ -53,6 +53,7 @@ import { AntecedentesFamiliares } from './catalogos/antecedentes-familiares.enti
 import { Ocupaciones } from './catalogos/ocupaciones.entity';
 import { HermanoEntrevista } from './historia-clinica/entities/hermano-entrevista.entity';
 import { FamiliarEntrevista } from './historia-clinica/entities/familiar-entrevista.entity';
+import { Comentario} from './postulaciones/comentario.entity';
 
 @Module({
   imports: [
@@ -110,7 +111,9 @@ import { FamiliarEntrevista } from './historia-clinica/entities/familiar-entrevi
         AntecedentesFamiliares,
         Ocupaciones,
         HermanoEntrevista,
-        FamiliarEntrevista
+        FamiliarEntrevista,
+        Comentario
+      
       ],
         synchronize: false,   // true en desarrollo, false en producción
         

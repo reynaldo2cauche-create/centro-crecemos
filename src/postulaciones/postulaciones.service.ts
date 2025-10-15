@@ -1,167 +1,283 @@
-// postulaciones.service.ts
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-  InternalServerErrorException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
+import { Repository } from 'typeorm';
+import { existsSync, mkdirSync, unlinkSync } from 'fs';
+import { join } from 'path';
 import { Postulacion } from './postulacion.entity';
+import { Comentario } from './comentario.entity';
 import { CreatePostulacionDto } from './dto/create-postulacion.dto';
 import { UpdatePostulacionDto } from './dto/update-postulacion.dto';
-import { createReadStream, existsSync, unlinkSync } from 'fs';
-import { join } from 'path';
-import * as fs from 'fs/promises';
+import { CreateComentarioDto } from './dto/create-comentario.dto';
 
 @Injectable()
 export class PostulacionesService {
-  private readonly uploadsPath = './uploads/cvs';
+  // CAMBIO: Usar 'cvs' en lugar de 'cv'
+  private readonly uploadDir = './uploads/cvs';
 
   constructor(
     @InjectRepository(Postulacion)
-    private readonly postulacionesRepository: Repository<Postulacion>,
+    private postulacionRepository: Repository<Postulacion>,
+    @InjectRepository(Comentario)
+    private comentarioRepository: Repository<Comentario>,
   ) {
-    this.ensureUploadsFolderExists();
-  }
-
-  private async ensureUploadsFolderExists() {
-    try {
-      await fs.mkdir(this.uploadsPath, { recursive: true });
-    } catch (error) {
-      console.error('Error creando carpeta de uploads:', error);
+    // Crear el directorio si no existe
+    if (!existsSync(this.uploadDir)) {
+      mkdirSync(this.uploadDir, { recursive: true });
+      console.log(`✅ Directorio creado: ${this.uploadDir}`);
+    } else {
+      console.log(`✅ Directorio ya existe: ${this.uploadDir}`);
     }
   }
 
-  async crearPostulacion(
-    createPostulacionDto: CreatePostulacionDto,
-    cvFile?: Express.Multer.File,
-  ) {
+  async create(
+  createPostulacionDto: CreatePostulacionDto,
+  file?: Express.Multer.File,
+): Promise<Postulacion> {
+  try {
+    console.log('=== SERVICE: CREANDO POSTULACIÓN ===');
+    console.log('DTO recibido:', createPostulacionDto);
+    console.log('Archivo recibido:', file);
+    
+    if (!file) {
+      throw new BadRequestException('El archivo CV es obligatorio');
+    }
+
+    // Asignar estado por defecto
+    if (!createPostulacionDto.estado_postulacion) {
+      createPostulacionDto.estado_postulacion = 'Nuevo';
+    }
+
+    // ✅ CAMBIO: Usar file.filename en lugar de guardar manualmente
+    // El archivo ya fue guardado por multer en diskStorage
+    createPostulacionDto.documentos_adjuntos = `/uploads/cvs/${file.filename}`;
+    console.log('Ruta del CV:', createPostulacionDto.documentos_adjuntos);
+
+    const postulacion = this.postulacionRepository.create(createPostulacionDto);
+    const result = await this.postulacionRepository.save(postulacion);
+    console.log('✅ Postulación creada con ID:', result.id_postulacion);
+    
+    return result;
+  } catch (error) {
+    console.error('❌ Error creating postulación:', error);
+    throw new BadRequestException(error.message || 'Error al crear la postulación');
+  }
+
+  }
+
+  private async guardarArchivo(file: Express.Multer.File): Promise<string> {
+    if (!file) {
+      throw new BadRequestException('Archivo no proporcionado');
+    }
+
+    if (file.mimetype !== 'application/pdf') {
+      throw new BadRequestException('Solo se permiten archivos PDF');
+    }
+
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    const filename = `cv-${uniqueSuffix}.pdf`;
+    const filepath = join(this.uploadDir, filename);
+
+    console.log('Guardando archivo en:', filepath);
+
+    const fs = require('fs').promises;
+    await fs.writeFile(filepath, file.buffer);
+
+    console.log('✅ Archivo guardado correctamente');
+
+    // CAMBIO: Retornar la ruta con 'cvs'
+    return `/uploads/cvs/${filename}`;
+  }
+
+  async findAll(filters?: {
+    estado_postulacion?: string;
+    distrito?: string;
+    cargo_postulado?: string;
+    fechaInicio?: Date;
+    fechaFin?: Date;
+    search?: string;
+  }): Promise<Postulacion[]> {
     try {
-      if (!cvFile) {
-        throw new BadRequestException('El CV es requerido');
+      console.log('Buscando postulaciones con filtros:', filters);
+      
+      const query = this.postulacionRepository
+        .createQueryBuilder('postulacion')
+        .leftJoinAndSelect('postulacion.comentarios', 'comentarios')
+        .orderBy('postulacion.fecha_postulacion', 'DESC');
+
+      if (filters?.estado_postulacion) {
+        query.andWhere('postulacion.estado_postulacion = :estado_postulacion', { 
+          estado_postulacion: filters.estado_postulacion 
+        });
       }
 
-      const postulacion = this.postulacionesRepository.create({
-        nombre: createPostulacionDto.nombre,
-        apellido: createPostulacionDto.apellido,
-        email: createPostulacionDto.email,
-        telefono: createPostulacionDto.telefono,
-        cargo_postulado: createPostulacionDto.cargo_postulado,
-        experiencia: createPostulacionDto.experiencia,
-        documentos_adjuntos: cvFile.filename,
+      if (filters?.distrito) {
+        query.andWhere('postulacion.distrito LIKE :distrito', { 
+          distrito: `%${filters.distrito}%` 
+        });
+      }
+
+      if (filters?.cargo_postulado) {
+        query.andWhere('postulacion.cargo_postulado LIKE :cargo_postulado', { 
+          cargo_postulado: `%${filters.cargo_postulado}%` 
+        });
+      }
+
+      if (filters?.search) {
+        query.andWhere('(postulacion.nombre LIKE :search OR postulacion.apellido LIKE :search OR postulacion.email LIKE :search)', { 
+          search: `%${filters.search}%` 
+        });
+      }
+
+      if (filters?.fechaInicio && filters?.fechaFin) {
+        query.andWhere('postulacion.fecha_postulacion BETWEEN :fechaInicio AND :fechaFin', {
+          fechaInicio: filters.fechaInicio,
+          fechaFin: filters.fechaFin
+        });
+      }
+
+      const postulaciones = await query.getMany();
+      console.log(`Encontradas ${postulaciones.length} postulaciones`);
+      
+      return postulaciones;
+    } catch (error) {
+      console.error('Error en findAll:', error);
+      throw new BadRequestException('Error al obtener las postulaciones');
+    }
+  }
+
+  async findOne(id: number): Promise<Postulacion> {
+    try {
+      const postulacion = await this.postulacionRepository.findOne({
+        where: { id_postulacion: id },
+        relations: ['comentarios'],
       });
 
-      return await this.postulacionesRepository.save(postulacion);
-    } catch (error) {
-      if (cvFile?.filename) {
-        await this.eliminarArchivo(cvFile.filename);
+      if (!postulacion) {
+        throw new NotFoundException(`Postulación con ID ${id} no encontrada`);
       }
-      throw error;
+
+      return postulacion;
+    } catch (error) {
+      console.error('Error en findOne:', error);
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new BadRequestException('Error al obtener la postulación');
     }
   }
 
-  async obtenerPostulaciones(filtros: any = {}) {
+  async update(id: number, updatePostulacionDto: UpdatePostulacionDto): Promise<Postulacion> {
     try {
-      const query = this.postulacionesRepository.createQueryBuilder('postulacion');
-
-      if (filtros.estado_postulacion) {
-        query.andWhere('postulacion.estado_postulacion = :estado', {
-          estado: filtros.estado_postulacion,
-        });
-      }
-
-      if (filtros.cargo_postulado) {
-        query.andWhere('postulacion.cargo_postulado LIKE :cargo', {
-          cargo: `%${filtros.cargo_postulado}%`,
-        });
-      }
-
-      if (filtros.fecha_desde && filtros.fecha_hasta) {
-        query.andWhere('postulacion.fecha_postulacion BETWEEN :desde AND :hasta', {
-          desde: filtros.fecha_desde,
-          hasta: filtros.fecha_hasta,
-        });
-      }
-
-      query.orderBy('postulacion.fecha_postulacion', 'DESC');
-      return await query.getMany();
+      const postulacion = await this.findOne(id);
+      Object.assign(postulacion, updatePostulacionDto);
+      return await this.postulacionRepository.save(postulacion);
     } catch (error) {
-      throw new InternalServerErrorException('Error al obtener postulaciones');
+      console.error('Error en update:', error);
+      throw new BadRequestException('Error al actualizar la postulación');
     }
   }
 
-  async obtenerPostulacionPorId(id: number) {
-    const postulacion = await this.postulacionesRepository.findOne({
-      where: { id_postulacion: id },
-    });
-
-    if (!postulacion) {
-      throw new NotFoundException(`Postulación con ID ${id} no encontrada`);
-    }
-
-    return postulacion;
-  }
-
-  async obtenerCV(id: number) {
-    const postulacion = await this.obtenerPostulacionPorId(id);
-
-    if (!postulacion.documentos_adjuntos) {
-      throw new NotFoundException('Esta postulación no tiene CV asociado');
-    }
-
-    const filePath = join(process.cwd(), this.uploadsPath, postulacion.documentos_adjuntos);
-
-    if (!existsSync(filePath)) {
-      throw new NotFoundException('Archivo CV no encontrado en el servidor');
-    }
-
-    const file = createReadStream(filePath);
-
-    return {
-      stream: file,
-      filename: postulacion.documentos_adjuntos,
-      mimetype: 'application/pdf',
-    };
-  }
-
-  async actualizarEstado(id: number, estado: string) {
-    const validStates = ['Nuevo', 'En revisión', 'Contactado', 'Por entrevistar','Rechazado', 'Contratado'];
-        if (!validStates.includes(estado)) {
-      throw new BadRequestException(
-        `Estado inválido. Debe ser uno de: ${validStates.join(', ')}`
-      );
-    }
-
-    const postulacion = await this.obtenerPostulacionPorId(id);
-    postulacion.estado_postulacion = estado;
-
-    return await this.postulacionesRepository.save(postulacion);
-  }
-
-  async eliminarPostulacion(id: number) {
-    const postulacion = await this.obtenerPostulacionPorId(id);
-
-    if (postulacion.documentos_adjuntos) {
-      await this.eliminarArchivo(postulacion.documentos_adjuntos);
-    }
-
-    await this.postulacionesRepository.remove(postulacion);
-
-    return {
-      success: true,
-      message: 'Postulación eliminada correctamente',
-    };
-  }
-
-  private async eliminarArchivo(filename: string): Promise<void> {
+  async remove(id: number): Promise<void> {
     try {
-      const filePath = join(process.cwd(), this.uploadsPath, filename);
-      if (existsSync(filePath)) {
-        unlinkSync(filePath);
+      const postulacion = await this.findOne(id);
+      
+      if (postulacion.documentos_adjuntos) {
+        const filename = postulacion.documentos_adjuntos.split('/').pop();
+        const filepath = join(this.uploadDir, filename);
+        
+        if (existsSync(filepath)) {
+          unlinkSync(filepath);
+          console.log('✅ Archivo eliminado:', filepath);
+        }
       }
+
+      await this.postulacionRepository.remove(postulacion);
     } catch (error) {
-      console.error(`Error eliminando archivo ${filename}:`, error);
+      console.error('Error en remove:', error);
+      throw new BadRequestException('Error al eliminar la postulación');
+    }
+  }
+
+  async addComentario(createComentarioDto: CreateComentarioDto): Promise<Comentario> {
+    try {
+      await this.findOne(createComentarioDto.id_postulacion);
+      const comentario = this.comentarioRepository.create(createComentarioDto);
+      return await this.comentarioRepository.save(comentario);
+    } catch (error) {
+      console.error('Error en addComentario:', error);
+      throw new BadRequestException('Error al agregar comentario');
+    }
+  }
+
+  async getComentariosByPostulacion(idPostulacion: number): Promise<Comentario[]> {
+    try {
+      return await this.comentarioRepository.find({
+        where: { id_postulacion: idPostulacion },
+        order: { fecha_comentario: 'DESC' },
+      });
+    } catch (error) {
+      console.error('Error en getComentariosByPostulacion:', error);
+      throw new BadRequestException('Error al obtener comentarios');
+    }
+  }
+
+  async getCVFile(id: number): Promise<{ filepath: string; filename: string }> {
+    try {
+      console.log(`=== OBTENIENDO CV PARA POSTULACIÓN ${id} ===`);
+      
+      const postulacion = await this.findOne(id);
+      console.log('Postulación encontrada:', postulacion.nombre, postulacion.apellido);
+      
+      if (!postulacion.documentos_adjuntos) {
+        throw new NotFoundException('CV no encontrado en la base de datos');
+      }
+
+      console.log('Ruta del CV en DB:', postulacion.documentos_adjuntos);
+
+      // Extraer el nombre del archivo de la ruta
+      const filename = postulacion.documentos_adjuntos.split('/').pop();
+      const filepath = join(this.uploadDir, filename);
+
+      console.log('Buscando archivo en:', filepath);
+      console.log('¿Existe el archivo?', existsSync(filepath));
+
+      if (!existsSync(filepath)) {
+        throw new NotFoundException(`Archivo CV no encontrado en el servidor: ${filepath}`);
+      }
+
+      const finalFilename = `${postulacion.nombre}_${postulacion.apellido}_CV.pdf`;
+      console.log('✅ CV encontrado, nombre final:', finalFilename);
+
+      return { 
+        filepath, 
+        filename: finalFilename
+      };
+    } catch (error) {
+      console.error('❌ Error en getCVFile:', error);
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new BadRequestException('Error al obtener el CV');
+    }
+  }
+
+  async getEstadisticas() {
+    try {
+      const total = await this.postulacionRepository.count();
+      
+      const porEstado = await this.postulacionRepository
+        .createQueryBuilder('postulacion')
+        .select('postulacion.estado_postulacion, COUNT(*) as count')
+        .groupBy('postulacion.estado_postulacion')
+        .getRawMany();
+
+      return {
+        total,
+        porEstado,
+      };
+    } catch (error) {
+      console.error('Error en getEstadisticas:', error);
+      throw new BadRequestException('Error al obtener estadísticas');
     }
   }
 }

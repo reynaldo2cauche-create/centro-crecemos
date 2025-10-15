@@ -1,45 +1,122 @@
-import { Controller, Post, Body, UseInterceptors, UploadedFile } from '@nestjs/common';
+// postulaciones.controller.ts
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
+  Query,
+  UseInterceptors,
+  UploadedFile,
+  Res,
+  StreamableFile,
+  ParseIntPipe,
+  BadRequestException,
+} from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Response } from 'express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
 import { PostulacionesService } from './postulaciones.service';
 import { CreatePostulacionDto } from './dto/create-postulacion.dto';
-import * as path from 'path';
-import * as fs from 'fs';
-import { v4 as uuidv4 } from 'uuid';
 
 @Controller('backend_api/postulaciones')
 export class PostulacionesController {
   constructor(private readonly postulacionesService: PostulacionesService) {}
 
-  // Endpoint para crear una postulación y subir un archivo adjunto
+  // Crear nueva postulación con CV
   @Post()
-  @UseInterceptors(
-    FileInterceptor('documento', {
-      dest: './uploads',  // Carpeta donde se almacenarán los archivos
-      limits: { fileSize: 5 * 1024 * 1024 },  // Limite de 5MB
-      fileFilter: (req, file, callback) => {
-        if (!file.originalname.match(/\.(jpg|jpeg|png|pdf)$/)) {  // Permite solo ciertos tipos de archivo
-          return callback(new Error('Solo se permiten imágenes o archivos PDF'), false);
-        }
-        callback(null, true);
-      }
+  @UseInterceptors(FileInterceptor('cv', {
+    storage: diskStorage({
+      destination: './uploads/cvs',
+      filename: (req, file, callback) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        const ext = extname(file.originalname);
+        callback(null, `cv-${uniqueSuffix}${ext}`);
+      },
     }),
-  )
+    fileFilter: (req, file, callback) => {
+      if (file.mimetype !== 'application/pdf') {
+        return callback(new BadRequestException('Solo se permiten archivos PDF'), false);
+      }
+      callback(null, true);
+    },
+    limits: { fileSize: 10 * 1024 * 1024 },
+  }))
   async crearPostulacion(
-    @Body() createPostulacionDto: CreatePostulacionDto, 
-    @UploadedFile() file: Express.Multer.File, // Archivo subido
+    @Body() createPostulacionDto: CreatePostulacionDto,
+    @UploadedFile() file: Express.Multer.File,
   ) {
-    // Generar nombre único para el archivo y guardar la ruta
-    if (file) {
-      const uniqueFileName = uuidv4() + path.extname(file.originalname);
-      const filePath = path.join('uploads', uniqueFileName);
+    return await this.postulacionesService.crearPostulacion(createPostulacionDto, file);
+  }
 
-      // Mover el archivo a su destino
-      fs.renameSync(file.path, filePath);
+  // Obtener todas las postulaciones con filtros opcionales
+  @Get()
+  async obtenerPostulaciones(
+    @Query('estado_postulacion') estado_postulacion?: string,
+    @Query('cargo_postulado') cargo_postulado?: string,
+    @Query('fecha_desde') fecha_desde?: string,
+    @Query('fecha_hasta') fecha_hasta?: string,
+  ) {
+    const filtros = { estado_postulacion, cargo_postulado, fecha_desde, fecha_hasta };
+    return await this.postulacionesService.obtenerPostulaciones(filtros);
+  }
 
-      // Añadir la ruta del archivo al DTO de la postulación
-      createPostulacionDto.documentos_adjuntos = filePath;
-    }
+  // Obtener postulación por ID
+  @Get(':id')
+  async obtenerPostulacionPorId(@Param('id', ParseIntPipe) id: number) {
+    return await this.postulacionesService.obtenerPostulacionPorId(id);
+  }
 
-    return await this.postulacionesService.insertarPostulacion(createPostulacionDto);
+  // ENDPOINT PRINCIPAL: Ver CV en el navegador (inline)
+  @Get(':id/cv')
+  async obtenerCV(
+    @Param('id', ParseIntPipe) id: number,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { stream, filename, mimetype } = await this.postulacionesService.obtenerCV(id);
+
+    res.set({
+      'Content-Type': mimetype,
+      'Content-Disposition': `inline; filename="${filename}"`,
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+    });
+
+    return new StreamableFile(stream);
+  }
+
+  // Descargar CV (attachment en lugar de inline)
+  @Get(':id/cv/download')
+  async descargarCV(
+    @Param('id', ParseIntPipe) id: number,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { stream, filename, mimetype } = await this.postulacionesService.obtenerCV(id);
+
+    res.set({
+      'Content-Type': mimetype,
+      'Content-Disposition': `attachment; filename="${filename}"`,
+    });
+
+    return new StreamableFile(stream);
+  }
+
+  // Actualizar solo el estado
+  @Put(':id/estado')
+  async actualizarEstado(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('estado') estado: string,
+  ) {
+    return await this.postulacionesService.actualizarEstado(id, estado);
+  }
+
+  // Eliminar postulación
+  @Delete(':id')
+  async eliminarPostulacion(@Param('id', ParseIntPipe) id: number) {
+    return await this.postulacionesService.eliminarPostulacion(id);
   }
 }

@@ -53,7 +53,7 @@ import { AntecedentesFamiliares } from './catalogos/antecedentes-familiares.enti
 import { Ocupaciones } from './catalogos/ocupaciones.entity';
 import { HermanoEntrevista } from './historia-clinica/entities/hermano-entrevista.entity';
 import { FamiliarEntrevista } from './historia-clinica/entities/familiar-entrevista.entity';
-  
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -68,8 +68,8 @@ import { FamiliarEntrevista } from './historia-clinica/entities/familiar-entrevi
       host: 'localhost',
       port: 3306,
       username: 'root',  // Asegúrate de poner el nombre de usuario correcto
-      password: 'Reynaldo1994',  // Asegúrate de poner la contraseña correcta
-      database: 'centro_terapias',
+      password: 'admin',  // Asegúrate de poner la contraseña correcta
+      database: 'crecemos_website',
       entities: [
         Postulacion,
         Paciente,
@@ -112,7 +112,8 @@ import { FamiliarEntrevista } from './historia-clinica/entities/familiar-entrevi
         HermanoEntrevista,
         FamiliarEntrevista
       ],
-      synchronize: false,    // Desactivado para evitar problemas con datos existentes
+        synchronize: false,   // true en desarrollo, false en producción
+        
     }),
 
     // TypeOrmModule.forRoot({

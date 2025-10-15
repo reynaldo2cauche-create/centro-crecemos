@@ -12,6 +12,11 @@ export class TrabajadorCentroController {
     return this.service.findAll();
   }
 
+  @Get('select')
+  findAllForSelect() {
+    return this.service.findAllForSelect();
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.service.findOneById(+id);

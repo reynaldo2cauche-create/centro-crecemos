@@ -43,6 +43,7 @@ import { Rol } from './usuarios/rol.entity';
 import { Especialidad } from './usuarios/especialidad.entity';
 import { ParejaPaciente } from './pacientes/entities/pareja-paciente.entity';
 import { HistoriaClinicaModule } from './historia-clinica/historia-clinica.module';
+import { CitasModule } from './citas/citas.module';
 import { ReporteEvolucion } from './historia-clinica/entities/reporte-evolucion.entity';
 import { EntrevistaPadres } from './historia-clinica/entities/entrevista-padres.entity';
 import { ArchivoDigital } from './historia-clinica/entities/archivo-digital.entity';
@@ -51,8 +52,12 @@ import { Atenciones } from './catalogos/atenciones.entity';
 import { RelacionPadres } from './catalogos/relacion-padres.entity';
 import { AntecedentesFamiliares } from './catalogos/antecedentes-familiares.entity';
 import { Ocupaciones } from './catalogos/ocupaciones.entity';
+import { MotivoCita } from './catalogos/motivo-cita.entity';
+import { EstadoCita } from './catalogos/estado-cita.entity';
+import { Cita } from './citas/cita.entity';
 import { HermanoEntrevista } from './historia-clinica/entities/hermano-entrevista.entity';
 import { FamiliarEntrevista } from './historia-clinica/entities/familiar-entrevista.entity';
+import { HistorialCita } from './citas/historial-cita.entity';
   
 @Module({
   imports: [
@@ -109,8 +114,12 @@ import { FamiliarEntrevista } from './historia-clinica/entities/familiar-entrevi
         RelacionPadres,
         AntecedentesFamiliares,
         Ocupaciones,
+        MotivoCita,
+        EstadoCita,
+        Cita,
         HermanoEntrevista,
-        FamiliarEntrevista
+        FamiliarEntrevista,
+        HistorialCita
       ],
       synchronize: false,    // Desactivado para evitar problemas con datos existentes
     }),
@@ -133,6 +142,7 @@ import { FamiliarEntrevista } from './historia-clinica/entities/familiar-entrevi
     AuthModule,
     TrabajadorCentroModule,
     HistoriaClinicaModule,
+    CitasModule,
   ],
   controllers: [AppController],
   providers: [AppService],

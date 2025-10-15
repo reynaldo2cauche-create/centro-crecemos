@@ -12,6 +12,8 @@ import { Atenciones } from './atenciones.entity';
 import { RelacionPadres } from './relacion-padres.entity';
 import { AntecedentesFamiliares } from './antecedentes-familiares.entity';
 import { Ocupaciones } from './ocupaciones.entity';
+import { MotivoCita } from './motivo-cita.entity';
+import { EstadoCita } from './estado-cita.entity';
 
 
 @Injectable()
@@ -39,6 +41,10 @@ export class CatalogosService {
     private antecedentesFamiliaresRepository: Repository<AntecedentesFamiliares>,
     @InjectRepository(Ocupaciones)
     private ocupacionesRepository: Repository<Ocupaciones>,
+    @InjectRepository(MotivoCita)
+    private motivoCitaRepository: Repository<MotivoCita>,
+    @InjectRepository(EstadoCita)
+    private estadoCitaRepository: Repository<EstadoCita>,
   ) {}
 
   getTipoDocumento() {
@@ -95,6 +101,20 @@ export class CatalogosService {
 
   getOcupaciones() {
     return this.ocupacionesRepository.find({ 
+      where: { activo: true },
+      order: { nombre: 'ASC' }
+    });
+  }
+
+  getMotivosCita() {
+    return this.motivoCitaRepository.find({ 
+      where: { activo: true },
+      order: { nombre: 'ASC' }
+    });
+  }
+
+  getEstadosCita() {
+    return this.estadoCitaRepository.find({ 
       where: { activo: true },
       order: { nombre: 'ASC' }
     });

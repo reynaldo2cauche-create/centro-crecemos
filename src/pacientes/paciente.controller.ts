@@ -40,6 +40,20 @@ export class PacienteController {
     return this.pacienteService.findAll(parsedFilters);
   }
 
+  @Get('buscar')
+  buscarPacientes(@Query('q') query: string) {
+    // Validar que el parámetro q esté presente y sea válido
+    if (!query || query === 'undefined' || query === 'null') {
+      return [];
+    }
+    return this.pacienteService.buscarPacientes(query);
+  }
+
+  @Get('check-documento/:numeroDocumento')
+  checkDocumentoExists(@Param('numeroDocumento') numeroDocumento: string) {
+    return this.pacienteService.checkDocumentoExists(numeroDocumento);
+  }
+
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdatePacienteDto) {
     return this.pacienteService.update(+id, dto);
@@ -48,11 +62,6 @@ export class PacienteController {
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.pacienteService.findOneById(+id);
-  }
-
-  @Get('check-documento/:numeroDocumento')
-  checkDocumentoExists(@Param('numeroDocumento') numeroDocumento: string) {
-    return this.pacienteService.checkDocumentoExists(numeroDocumento);
   }
 
   @Patch(':id/estado')

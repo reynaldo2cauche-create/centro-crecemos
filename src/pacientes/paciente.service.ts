@@ -539,4 +539,38 @@ export class PacienteService {
       ]
     });
   }
+
+  /**
+   * Busca pacientes por nombre/apellido para autocompletado
+   * @param query Término de búsqueda
+   * @returns Array con id, nombres y apellidos
+   */ 
+  async buscarPacientes(query: string): Promise<{ id: number; nombre_completo: string }[]> {
+    if (!query || query.trim().length < 2) {
+      return [];
+    }
+
+    const pacientes = await this.pacienteRepository
+      .createQueryBuilder('paciente')
+      .select([
+        'paciente.id',
+        'paciente.nombres',
+        'paciente.apellido_paterno',
+        'paciente.apellido_materno'
+      ])
+      .where('paciente.activo = :activo', { activo: true })
+      .andWhere('paciente.mostrar_en_listado = :mostrarEnListado', { mostrarEnListado: true })
+      .andWhere(
+        '(paciente.nombres LIKE :query OR paciente.apellido_paterno LIKE :query OR paciente.apellido_materno LIKE :query)',
+        { query: `%${query.trim()}%` }
+      )
+      .orderBy('paciente.nombres', 'ASC')
+      .limit(20)
+      .getMany();
+
+    return pacientes.map(paciente => ({
+      id: paciente.id,
+      nombre_completo: `${paciente.nombres} ${paciente.apellido_paterno} ${paciente.apellido_materno}`.trim()
+    }));
+  }
 }

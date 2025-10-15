@@ -17,6 +17,25 @@ export class TrabajadorCentroService {
     return this.trabajadorCentroRepository.find();
   }
 
+  /**
+   * Obtiene trabajadores activos solo con datos necesarios para select
+   * @returns Array con id, nombre_completo y cargo
+   */
+  async findAllForSelect(): Promise<{ id: number; nombre_completo: string; cargo: string }[]> {
+    const trabajadores = await this.trabajadorCentroRepository.find({
+      select: ['id', 'nombres', 'apellidos', 'rol'],
+      relations: ['rol'],
+      where: { estado: true },
+      order: { apellidos: 'ASC', nombres: 'ASC' }
+    });
+
+    return trabajadores.map(trabajador => ({
+      id: trabajador.id,
+      nombre_completo: `${trabajador.nombres} ${trabajador.apellidos}`.trim(),
+      cargo: trabajador.rol?.nombre || 'Sin cargo'
+    }));
+  }
+
   async create(dto: CreateTrabajadorCentroDto) {
     console.log('DTO recibido:', dto);
     console.log('Password:', dto.password);

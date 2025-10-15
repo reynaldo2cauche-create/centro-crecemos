@@ -55,10 +55,6 @@ export class PostulacionesController {
     @Body() createPostulacionDto: CreatePostulacionDto,
     @UploadedFile() cv: Express.Multer.File,
   ): Promise<Postulacion> {
-    console.log('=== CONTROLLER CREATE ===');
-    console.log('DTO:', createPostulacionDto);
-    console.log('File:', cv ? cv.filename : 'Sin archivo');
-    console.log('File path:', cv ? cv.path : 'Sin path');
     
     if (!cv) {
       throw new BadRequestException('El archivo CV es obligatorio');
@@ -104,11 +100,8 @@ export class PostulacionesController {
     @Param('id', ParseIntPipe) id: number,
     @Res({ passthrough: true }) res: Response,
   ): Promise<StreamableFile> {
-    console.log(`=== DOWNLOAD CV ID: ${id} ===`);
     const { filepath, filename } = await this.postulacionesService.getCVFile(id);
     
-    console.log('Filepath:', filepath);
-    console.log('Filename:', filename);
     
     const file = createReadStream(filepath);
     res.set({
@@ -124,11 +117,8 @@ export class PostulacionesController {
     @Param('id', ParseIntPipe) id: number,
     @Res({ passthrough: true }) res: Response,
   ): Promise<StreamableFile> {
-    console.log(`=== GET CV ID: ${id} ===`);
     const { filepath, filename } = await this.postulacionesService.getCVFile(id);
     
-    console.log('Filepath:', filepath);
-    console.log('Filename:', filename);
     
     const file = createReadStream(filepath);
     res.set({

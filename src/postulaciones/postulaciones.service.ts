@@ -34,9 +34,6 @@ export class PostulacionesService {
   file?: Express.Multer.File,
 ): Promise<Postulacion> {
   try {
-    console.log('=== SERVICE: CREANDO POSTULACIÓN ===');
-    console.log('DTO recibido:', createPostulacionDto);
-    console.log('Archivo recibido:', file);
     
     if (!file) {
       throw new BadRequestException('El archivo CV es obligatorio');
@@ -50,11 +47,9 @@ export class PostulacionesService {
     // ✅ CAMBIO: Usar file.filename en lugar de guardar manualmente
     // El archivo ya fue guardado por multer en diskStorage
     createPostulacionDto.documentos_adjuntos = `/uploads/cvs/${file.filename}`;
-    console.log('Ruta del CV:', createPostulacionDto.documentos_adjuntos);
 
     const postulacion = this.postulacionRepository.create(createPostulacionDto);
     const result = await this.postulacionRepository.save(postulacion);
-    console.log('✅ Postulación creada con ID:', result.id_postulacion);
     
     return result;
   } catch (error) {
@@ -77,12 +72,10 @@ export class PostulacionesService {
     const filename = `cv-${uniqueSuffix}.pdf`;
     const filepath = join(this.uploadDir, filename);
 
-    console.log('Guardando archivo en:', filepath);
 
     const fs = require('fs').promises;
     await fs.writeFile(filepath, file.buffer);
 
-    console.log('✅ Archivo guardado correctamente');
 
     // CAMBIO: Retornar la ruta con 'cvs'
     return `/uploads/cvs/${filename}`;
@@ -97,7 +90,6 @@ export class PostulacionesService {
     search?: string;
   }): Promise<Postulacion[]> {
     try {
-      console.log('Buscando postulaciones con filtros:', filters);
       
       const query = this.postulacionRepository
         .createQueryBuilder('postulacion')
@@ -136,7 +128,6 @@ export class PostulacionesService {
       }
 
       const postulaciones = await query.getMany();
-      console.log(`Encontradas ${postulaciones.length} postulaciones`);
       
       return postulaciones;
     } catch (error) {
@@ -223,23 +214,18 @@ export class PostulacionesService {
 
   async getCVFile(id: number): Promise<{ filepath: string; filename: string }> {
     try {
-      console.log(`=== OBTENIENDO CV PARA POSTULACIÓN ${id} ===`);
       
       const postulacion = await this.findOne(id);
-      console.log('Postulación encontrada:', postulacion.nombre, postulacion.apellido);
       
       if (!postulacion.documentos_adjuntos) {
         throw new NotFoundException('CV no encontrado en la base de datos');
       }
 
-      console.log('Ruta del CV en DB:', postulacion.documentos_adjuntos);
 
       // Extraer el nombre del archivo de la ruta
       const filename = postulacion.documentos_adjuntos.split('/').pop();
       const filepath = join(this.uploadDir, filename);
 
-      console.log('Buscando archivo en:', filepath);
-      console.log('¿Existe el archivo?', existsSync(filepath));
 
       if (!existsSync(filepath)) {
         throw new NotFoundException(`Archivo CV no encontrado en el servidor: ${filepath}`);

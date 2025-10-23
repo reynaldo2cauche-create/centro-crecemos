@@ -19,8 +19,8 @@ export class CrearArchivoOficialDto {
 
   @IsInt()
   @Type(() => Number)
-  @IsNotEmpty({ message: 'El terapeutaId es requerido' })
-  terapeutaId: number;
+  @IsOptional()
+  terapeutaId?: number;
 
   @IsInt()
   @Type(() => Number)

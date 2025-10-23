@@ -142,7 +142,7 @@ export class ArchivosOficialesService {
     const archivo = this.archivoOficialRepo.create({
       pacienteId: dto.pacienteId || null,
       trabajadorId: dto.trabajadorId || null,
-      terapeutaId: dto.terapeutaId,
+      terapeutaId: dto.terapeutaId||null,
       trabajadorSubioId: trabajadorId,
       tipoArchivoId: dto.tipoArchivoId,
       nombreArchivo,
@@ -244,124 +244,134 @@ export class ArchivosOficialesService {
     await this.archivoOficialRepo.save(archivo);
   }
 
-  // ============================================
-  // VALIDAR DOCUMENTO (ACTUALIZADO)
-  // ============================================
-  async validarDocumento(codigoValidacion: string) {
-    const archivo = await this.archivoOficialRepo.findOne({
-      where: { codigoValidacion },
-      relations: ['paciente', 'paciente.estado', 'trabajador', 'terapeuta', 'tipoArchivo'],
-    });
+// ============================================
+// VALIDAR DOCUMENTO (VERSIÓN FINAL CORREGIDA)
+// ============================================
+async validarDocumento(codigoValidacion: string) {
+  const archivo = await this.archivoOficialRepo.findOne({
+    where: { codigoValidacion },
+    relations: ['paciente', 'paciente.estado', 'trabajador', 'terapeuta', 'tipoArchivo'],
+  });
 
-    if (!archivo) {
-      throw new NotFoundException('Documento no encontrado');
-    }
+  if (!archivo) {
+    throw new NotFoundException('Documento no encontrado');
+  }
 
-    const ocultarDNI = (dni: string): string => {
-      if (!dni || dni.length < 4) return '****';
-      return '*'.repeat(dni.length - 4) + dni.slice(-4);
-    };
+  const ocultarDNI = (dni: string): string => {
+    if (!dni || dni.length < 4) return '****';
+    return '*'.repeat(dni.length - 4) + dni.slice(-4);
+  };
 
-    const formatearFechaSinZonaHoraria = (fecha: Date | string): string => {
-      if (!fecha) return null;
-      
-      let fechaObj: Date;
-      
-      if (typeof fecha === 'string') {
-        if (fecha.includes('T')) {
-          fechaObj = new Date(fecha);
-        } else {
-          const [year, month, day] = fecha.split('-').map(Number);
-          fechaObj = new Date(year, month - 1, day);
-        }
-      } else if (fecha instanceof Date) {
-        fechaObj = fecha;
+  const formatearFechaSinZonaHoraria = (fecha: Date | string): string => {
+    if (!fecha) return null;
+    
+    let fechaObj: Date;
+    
+    if (typeof fecha === 'string') {
+      if (fecha.includes('T')) {
+        fechaObj = new Date(fecha);
       } else {
-        return null;
+        const [year, month, day] = fecha.split('-').map(Number);
+        fechaObj = new Date(year, month - 1, day);
       }
-      
-      if (isNaN(fechaObj.getTime())) return null;
-      
-      const year = fechaObj.getFullYear();
-      const month = String(fechaObj.getMonth() + 1).padStart(2, '0');
-      const day = String(fechaObj.getDate()).padStart(2, '0');
-      
-      return `${year}-${month}-${day}`;
-    };
-
-    const estaVigente = (fechaVigencia: Date | string): boolean => {
-      if (!fechaVigencia) {
-        return true;
-      }
-      
-      let fechaVigenciaObj: Date;
-      
-      if (typeof fechaVigencia === 'string') {
-        if (fechaVigencia.includes('T')) {
-          fechaVigenciaObj = new Date(fechaVigencia);
-        } else {
-          const [year, month, day] = fechaVigencia.split('-').map(Number);
-          fechaVigenciaObj = new Date(year, month - 1, day, 23, 59, 59, 999);
-        }
-      } else if (fechaVigencia instanceof Date) {
-        fechaVigenciaObj = new Date(fechaVigencia);
-        fechaVigenciaObj.setHours(23, 59, 59, 999);
-      } else {
-        return false;
-      }
-      
-      const ahora = new Date();
-      return fechaVigenciaObj > ahora;
-    };
-
-    const fechaEmisionFormateada = formatearFechaSinZonaHoraria(archivo.fechaEmision);
-    const fechaVigenciaFormateada = archivo.fechaVigencia 
-      ? formatearFechaSinZonaHoraria(archivo.fechaVigencia) 
-      : null;
-    const vigente = estaVigente(archivo.fechaVigencia);
-
-    // ✅ DETERMINAR SI ES PACIENTE O TRABAJADOR
-    let destinatario: any;
-    let tipoDestinatario: 'paciente' | 'trabajador';
-
-    if (archivo.pacienteId) {
-      tipoDestinatario = 'paciente';
-      destinatario = {
-        nombres: archivo.paciente.nombres,
-        apellidos: `${archivo.paciente.apellido_paterno} ${archivo.paciente.apellido_materno}`,
-        dni: ocultarDNI(archivo.paciente.numero_documento),
-        activo: archivo.paciente.activo,
-        estado: archivo.paciente.estado?.nombre || null,
-      };
+    } else if (fecha instanceof Date) {
+      fechaObj = fecha;
     } else {
-      tipoDestinatario = 'trabajador';
-      destinatario = {
-        nombres: archivo.trabajador.nombres,
-        apellidos: archivo.trabajador.apellidos,
-        dni: ocultarDNI(archivo.trabajador.dni),
-        activo: archivo.trabajador.estado === true,
-        
-        especialidad: archivo.trabajador.especialidad,
-      };
+      return null;
     }
+    
+    if (isNaN(fechaObj.getTime())) return null;
+    
+    const year = fechaObj.getFullYear();
+    const month = String(fechaObj.getMonth() + 1).padStart(2, '0');
+    const day = String(fechaObj.getDate()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}`;
+  };
 
-    return {
-      valido: true,
-      codigo: archivo.codigoValidacion,
-      tipoDocumento: archivo.tipoArchivo?.nombre || 'Sin especificar',
-      tipoDestinatario, // 'paciente' o 'trabajador'
-      destinatario, // datos del paciente o trabajador
-      // MANTENER COMPATIBILIDAD CON CÓDIGO ANTERIOR
-      paciente: tipoDestinatario === 'paciente' ? destinatario : null,
-      trabajador: tipoDestinatario === 'trabajador' ? destinatario : null,
-      terapeuta: {
-        nombres: archivo.terapeuta.nombres,
-        apellidos: archivo.terapeuta.apellidos,
-      },
-      fechaEmision: fechaEmisionFormateada,
-      fechaVigencia: fechaVigenciaFormateada,
-      vigente: vigente,
-      urlVerificacion: `${process.env.FRONTEND_URL || 'https://www.crecemos.com.pe'}/validar?code=${archivo.codigoValidacion}`,
+  const estaVigente = (fechaVigencia: Date | string): boolean => {
+    if (!fechaVigencia) {
+      return true;
+    }
+    
+    let fechaVigenciaObj: Date;
+    
+    if (typeof fechaVigencia === 'string') {
+      if (fechaVigencia.includes('T')) {
+        fechaVigenciaObj = new Date(fechaVigencia);
+      } else {
+        const [year, month, day] = fechaVigencia.split('-').map(Number);
+        fechaVigenciaObj = new Date(year, month - 1, day, 23, 59, 59, 999);
+      }
+    } else if (fechaVigencia instanceof Date) {
+      fechaVigenciaObj = new Date(fechaVigencia);
+      fechaVigenciaObj.setHours(23, 59, 59, 999);
+    } else {
+      return false;
+    }
+    
+    const ahora = new Date();
+    return fechaVigenciaObj > ahora;
+  };
+
+  const fechaEmisionFormateada = formatearFechaSinZonaHoraria(archivo.fechaEmision);
+  const fechaVigenciaFormateada = archivo.fechaVigencia 
+    ? formatearFechaSinZonaHoraria(archivo.fechaVigencia) 
+    : null;
+  const vigente = estaVigente(archivo.fechaVigencia);
+
+  // ✅ DETERMINAR SI ES PACIENTE O TRABAJADOR
+  let destinatario: any;
+  let tipoDestinatario: 'paciente' | 'trabajador';
+
+  if (archivo.pacienteId && archivo.paciente) {
+    tipoDestinatario = 'paciente';
+    destinatario = {
+      nombres: archivo.paciente.nombres || 'Sin nombre',
+      apellidos: `${archivo.paciente.apellido_paterno || ''} ${archivo.paciente.apellido_materno || ''}`.trim() || 'Sin apellidos',
+      dni: ocultarDNI(archivo.paciente.numero_documento),
+      activo: archivo.paciente.activo ?? false,
+      estado: archivo.paciente.estado?.nombre || null,
+    };
+  } else if (archivo.trabajadorId && archivo.trabajador) {
+    tipoDestinatario = 'trabajador';
+    destinatario = {
+      nombres: archivo.trabajador.nombres || 'Sin nombre',
+      apellidos: archivo.trabajador.apellidos || 'Sin apellidos',
+      dni: ocultarDNI(archivo.trabajador.dni),
+      activo: archivo.trabajador.estado === true,
+      especialidad: archivo.trabajador.especialidad || null,
+    };
+  } else {
+    throw new NotFoundException('El documento no tiene paciente ni trabajador asignado');
+  }
+
+  // ✅ CRÍTICO: VALIDAR SI TERAPEUTA EXISTE ANTES DE ACCEDER A SUS PROPIEDADES
+  let terapeutaData = null;
+  if (archivo.terapeuta) {
+    terapeutaData = {
+      nombres: archivo.terapeuta.nombres || 'Sin nombre',
+      apellidos: archivo.terapeuta.apellidos || 'Sin apellidos',
     };
   }
+
+  return {
+    valido: true,
+    codigo: archivo.codigoValidacion,
+    tipoDocumento: archivo.tipoArchivo?.nombre || 'Sin especificar',
+    tipoDestinatario, // 'paciente' o 'trabajador'
+    destinatario, // datos del paciente o trabajador (DNI cifrado)
+    
+    // MANTENER COMPATIBILIDAD CON CÓDIGO ANTERIOR
+    paciente: tipoDestinatario === 'paciente' ? destinatario : null,
+    trabajador: tipoDestinatario === 'trabajador' ? destinatario : null,
+    
+    terapeuta: terapeutaData, // ✅ PUEDE SER NULL - el frontend lo maneja
+    
+    fechaEmision: fechaEmisionFormateada,
+    fechaVigencia: fechaVigenciaFormateada,
+    vigente: vigente,
+    urlVerificacion: `${process.env.FRONTEND_URL || 'https://www.crecemos.com.pe'}/verificar-documento`,
+  };
+}
 }

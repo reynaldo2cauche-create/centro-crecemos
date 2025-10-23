@@ -16,7 +16,7 @@ export class ArchivoOficial {
   trabajadorId: number;
 
   @Column({ name: 'terapeuta_id' })
-  terapeutaId: number;
+  terapeutaId?: number;
 
   @Column({ name: 'trabajador_subio_id' })
   trabajadorSubioId: number;

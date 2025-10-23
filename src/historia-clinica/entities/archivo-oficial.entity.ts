@@ -1,3 +1,4 @@
+// src/archivos/entities/archivo-oficial.entity.ts
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { Paciente } from '../../pacientes/paciente.entity';
 import { TrabajadorCentro } from '../../usuarios/trabajador-centro.entity';
@@ -8,8 +9,11 @@ export class ArchivoOficial {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ name: 'paciente_id' })
+  @Column({ name: 'paciente_id', nullable: true })
   pacienteId: number;
+
+  @Column({ name: 'trabajador_id', nullable: true })
+  trabajadorId: number;
 
   @Column({ name: 'terapeuta_id' })
   terapeutaId: number;
@@ -59,9 +63,13 @@ export class ArchivoOficial {
   fechaActualizacion: Date;
 
   // Relaciones
-  @ManyToOne(() => Paciente)
+  @ManyToOne(() => Paciente, { nullable: true })
   @JoinColumn({ name: 'paciente_id' })
   paciente: Paciente;
+
+  @ManyToOne(() => TrabajadorCentro, { nullable: true })
+  @JoinColumn({ name: 'trabajador_id' })
+  trabajador: TrabajadorCentro;
 
   @ManyToOne(() => TrabajadorCentro)
   @JoinColumn({ name: 'terapeuta_id' })

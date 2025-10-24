@@ -243,6 +243,20 @@ export class ArchivosOficialesService {
     archivo.activo = 0;
     await this.archivoOficialRepo.save(archivo);
   }
+    /**
+   * Determina si el estado es activo o inactivo
+   */
+  private determinarEstadoActividad(nombreEstado: string): 'activo' | 'inactivo' {
+    if (!nombreEstado) return 'inactivo';
+    
+    // Si el estado es exactamente 'Inactivo', retorna inactivo
+    if (nombreEstado === 'Inactivo') {
+      return 'inactivo';
+    }
+    
+    // Cualquier otro estado (Nuevo, Entrevista, Evaluacion, Terapia) es activo
+    return 'activo';
+  }
 
 // ============================================
 // VALIDAR DOCUMENTO (VERSIÓN FINAL CORREGIDA)
@@ -330,8 +344,8 @@ async validarDocumento(codigoValidacion: string) {
       nombres: archivo.paciente.nombres || 'Sin nombre',
       apellidos: `${archivo.paciente.apellido_paterno || ''} ${archivo.paciente.apellido_materno || ''}`.trim() || 'Sin apellidos',
       dni: ocultarDNI(archivo.paciente.numero_documento),
-      activo: archivo.paciente.activo ?? false,
-      estado: archivo.paciente.estado?.nombre || null,
+
+      estado: archivo.paciente.estado || null,
     };
   } else if (archivo.trabajadorId && archivo.trabajador) {
     tipoDestinatario = 'trabajador';

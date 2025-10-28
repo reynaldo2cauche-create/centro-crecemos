@@ -69,6 +69,11 @@ export class PostulacionesController {
     return await this.postulacionesService.getEstadisticas();
   }
 
+  @Get('estadisticas-por-estados')
+  async getEstadisticasPorEstados() {
+    return await this.postulacionesService.getEstadisticasPorEstados();
+  }
+
   @Post('comentarios')
   async addComentario(@Body() createComentarioDto: CreateComentarioDto): Promise<Comentario> {
     return await this.postulacionesService.addComentario(createComentarioDto);

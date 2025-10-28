@@ -308,4 +308,47 @@ export class PostulacionesService {
       throw new BadRequestException('Error al obtener estadísticas');
     }
   }
+
+  async getEstadisticasPorEstados() {
+    try {
+      const total = await this.postulacionRepository.count();
+      
+      // Obtener todos los estados disponibles
+      const todosLosEstados = await this.estadoRepository.find({
+        where: { activo: 1 },
+        order: { descripcion: 'ASC' }
+      });
+
+      // Obtener conteo por estado de las postulaciones existentes
+      const estadosConCantidad = await this.postulacionRepository
+        .createQueryBuilder('postulacion')
+        .leftJoin('postulacion.estadoPostulacionRelacion', 'estado')
+        .select('estado.descripcion', 'nombre')
+        .addSelect('COUNT(postulacion.id_postulacion)', 'cantidad')
+        .groupBy('estado.descripcion')
+        .getRawMany();
+
+      // Crear un mapa para acceso rápido a las cantidades
+      const cantidadPorEstado = new Map();
+      estadosConCantidad.forEach(estado => {
+        cantidadPorEstado.set(estado.nombre, parseInt(estado.cantidad));
+      });
+
+      // Crear el array final con todos los estados, incluyendo los que tienen cantidad 0
+      const estados = todosLosEstados.map(estado => ({
+        nombre: estado.descripcion,
+        cantidad: cantidadPorEstado.get(estado.descripcion) || 0
+      }));
+
+      return {
+        total,
+        estados
+      };
+    } catch (error) {
+      console.error('Error en getEstadisticasPorEstados:', error);
+      throw new BadRequestException('Error al obtener estadísticas por estados');
+    }
+  }
+
+  
 }
